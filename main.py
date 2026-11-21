@@ -96,7 +96,8 @@ def create_map(output_path: str = "latency_path_map.html") -> Path:
         )
         tooltip = (
             f"{source_name} → {hub_name} → {destination_name} | "
-            f"Illustrative latency: {total_latency_ms} ms"
+            f"Illustrative latency: {total_latency_ms} ms | "
+            f"Approx. route distance: {route_distance_miles:.1f} miles"
         )
 
         folium.PolyLine(
@@ -113,18 +114,6 @@ def create_map(output_path: str = "latency_path_map.html") -> Path:
             color=color,
             opacity=0.7,
         ).add_to(map_view)
-
-        folium.Tooltip(
-            f"{total_latency_ms} ms · {route_distance_miles:.1f} miles",
-            sticky=True,
-        ).add_to(
-            folium.PolyLine(
-                route,
-                color=color,
-                weight=0,
-                opacity=0,
-            ).add_to(map_view)
-        )
 
     output = Path(output_path)
     map_view.save(str(output))
