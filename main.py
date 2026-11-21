@@ -1,13 +1,15 @@
 """Interactive geographic latency-path visualization prototype.
 
-Uses illustrative coordinates and latency values. This is not live network telemetry.
+All locations and latency values are illustrative. This is not live telemetry.
 """
 from pathlib import Path
+
 import folium
 from folium.plugins import AntPath
 from geopy.distance import geodesic
 
-# Illustrative endpoint and point-of-presence coordinates (Europe).
+# Synthetic example locations. Do not replace these with private topology data
+# in a public repository.
 SOURCES = {
     "Source A": (51.507, -0.589),
     "Source B": (51.127, -0.016),
@@ -19,11 +21,11 @@ HUBS = {
 }
 DESTINATIONS = {
     "London POP A": (51.510, -0.130),
-    "London POP B": (51.510, -0.130),  # Illustrative duplicate coordinate
+    "London POP B": (51.510, -0.130),
     "Manchester": (53.483, -2.200),
 }
 
-# (source, hub, destination, style, segment_latency_ms)
+# (source, transit hub, destination, line color, per-hop latency in ms)
 PATHS = [
     ("Source A", "UK South", "London POP A", "blue", (12, 8)),
     ("Source A", "Amsterdam", "London POP A", "green", (20, 12)),
@@ -40,34 +42,89 @@ PATHS = [
 ]
 
 
+def _add_location_markers(map_view: folium.Map) -> None:
+    """Add each synthetic endpoint and transit hub once."""
+    for name, coordinates in SOURCES.items():
+        folium.Marker(
+            coordinates,
+            tooltip=f"Source: {name}",
+            icon=folium.Icon(color="blue", icon="upload"),
+        ).add_to(map_view)
+
+    for name, coordinates in HUBS.items():
+        folium.Marker(
+            coordinates,
+            tooltip=f"Transit hub: {name}",
+            icon=folium.Icon(color="green", icon="cloud"),
+        ).add_to(map_view)
+
+    for name, coordinates in DESTINATIONS.items():
+        folium.Marker(
+            coordinates,
+            tooltip=f"Destination: {name}",
+            icon=folium.Icon(color="red", icon="flag"),
+        ).add_to(map_view)
+
+
 def create_map(output_path: str = "latency_path_map.html") -> Path:
-    """Render illustrative multi-hop paths to a standalone HTML map."""
-    map_view = folium.Map(location=(51.8, 2.5), zoom_start=5, control_scale=True)
+    """Render sample multi-hop routes and illustrative latency values."""
+    map_view = folium.Map(
+        location=(51.8, 2.5),
+        zoom_start=5,
+        control_scale=True,
+    )
     title = """
-    <h3 style='position:fixed;top:10px;left:50%;transform:translateX(-50%);
-    z-index:999;background:white;padding:10px;border-radius:5px'>
-    Geographic Latency Path Visualization
-    </h3>
+    <div style="position:fixed;top:10px;left:50%;transform:translateX(-50%);
+    z-index:999;background:white;padding:10px;border-radius:5px">
+      <strong>Geographic Latency Path Visualization</strong><br>
+      <small>Illustrative sample data — not live measurements</small>
+    </div>
     """
     map_view.get_root().html.add_child(folium.Element(title))
+    _add_location_markers(map_view)
 
-    for source_name, hub_name, destination_name, color, latency in PATHS:
+    for source_name, hub_name, destination_name, color, hop_latency in PATHS:
         source = SOURCES[source_name]
         hub = HUBS[hub_name]
         destination = DESTINATIONS[destination_name]
-        path = [source, hub, destination]
-        total_latency = sum(latency)
-        distance_miles = geodesic(source, destination).miles
+        route = [source, hub, destination]
 
-        folium.PolyLine(path, color=color, weight=3, tooltip=f"{source_name} → {destination_name}").add_to(map_view)
-        AntPath(path, delay=400, weight=4, color=color).add_to(map_view)
-        folium.Marker(
-            destination,
-            popup=f"{destination_name}<br>Illustrative latency: {total_latency} ms<br>Distance: {distance_miles:.1f} miles",
-            icon=folium.Icon(color="red"),
+        total_latency_ms = sum(hop_latency)
+        route_distance_miles = sum(
+            geodesic(route[index], route[index + 1]).miles
+            for index in range(len(route) - 1)
+        )
+        tooltip = (
+            f"{source_name} → {hub_name} → {destination_name} | "
+            f"Illustrative latency: {total_latency_ms} ms"
+        )
+
+        folium.PolyLine(
+            route,
+            color=color,
+            weight=3,
+            opacity=0.8,
+            tooltip=tooltip,
         ).add_to(map_view)
-        folium.Marker(source, popup=f"Source: {source_name}", icon=folium.Icon(color="blue")).add_to(map_view)
-        folium.Marker(hub, popup=f"Transit hub: {hub_name}", icon=folium.Icon(color="green")).add_to(map_view)
+        AntPath(
+            route,
+            delay=400,
+            weight=4,
+            color=color,
+            opacity=0.7,
+        ).add_to(map_view)
+
+        folium.Tooltip(
+            f"{total_latency_ms} ms · {route_distance_miles:.1f} miles",
+            sticky=True,
+        ).add_to(
+            folium.PolyLine(
+                route,
+                color=color,
+                weight=0,
+                opacity=0,
+            ).add_to(map_view)
+        )
 
     output = Path(output_path)
     map_view.save(str(output))
@@ -75,5 +132,5 @@ def create_map(output_path: str = "latency_path_map.html") -> Path:
 
 
 if __name__ == "__main__":
-    result = create_map()
-    print(f"Map saved to {result.resolve()}")
+    generated_map = create_map()
+    print(f"Map saved to {generated_map.resolve()}")
